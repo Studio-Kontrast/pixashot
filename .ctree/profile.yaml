@@ -1,0 +1,26 @@
+# profile.yaml - Updated to explicitly include src and tests directories
+include:
+  - "src/**"           # Include all files under src directory
+  - "tests/**"         # Include all files under tests directory
+  - "README.md"        # Project documentation
+  - "ROADMAP.md"       # Project roadmap
+  - "cloudbuild.yaml"  # Cloud build configuration
+  - "deploy.sh"        # Deployment script
+  - "diagnostic.py"    # Diagnostic script
+  - "entry.sh"         # Entry script
+  - "openapi.yaml"     # API specification
+  - "pytest.ini"       # Pytest configuration
+  - "requirements.txt" # Python dependencies
+  - "templates.json"   # Template definitions
+  - "Dockerfile"       # Docker configuration
+
+exclude:
+  - "src/extensions/**" # Exclude browser extension files
+  - "**/__pycache__/**" # Exclude compiled Python files
+  - ".env"              # Exclude environment variable file
+
+always:
+  - "requirements.txt"     # Ensure critical dependency file is included
+  - "Dockerfile"           # Ensure Docker configuration is included
+  - "src/app.py"           # Ensure main application file is included
+  - "src/capture_service.py" # Ensure capture service file is included
