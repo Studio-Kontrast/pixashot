@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 import psutil
+from PIL import Image  # Import Pillow for WebP conversion
 
 from quart import (
     abort,
@@ -33,6 +34,10 @@ def register_routes(app):
         """
         Handle screenshot capture requests with development-aware error handling.
         """
+        # Define paths early, initialize to None
+        intermediate_output_path = None
+        final_output_path = None
+        
         try:
             # Parse request parameters
             if request.method == 'POST':
@@ -70,45 +75,94 @@ def register_routes(app):
 
             timestamp = int(time.time())
             random_suffix = int(random.random() * 10000)
-            output_path = f"{tempfile.gettempdir()}/{hostname}_{timestamp}_{random_suffix}.{options.format}"
-
+            base_filename = f"{hostname}_{timestamp}_{random_suffix}"
+            temp_dir = tempfile.gettempdir()
+            
+            # Determine the intermediate format Playwright will save
+            # The capture_service will now return the format that was actually saved
+            intermediate_output_path = os.path.join(temp_dir, f"{base_filename}.{options.format}")
+            
             # Capture the screenshot
             try:
-                await capture_service.capture_screenshot(output_path, options)
+                saved_format = await capture_service.capture_screenshot(intermediate_output_path, options)
+                logger.info(f"Intermediate screenshot saved as {intermediate_output_path} (format: {saved_format})")
             except Exception as capture_error:
-                if os.path.exists(output_path):
-                    os.remove(output_path)
+                if os.path.exists(intermediate_output_path):
+                    os.remove(intermediate_output_path)
                 raise capture_error
+
+            # --- Conversion Step (if needed) ---
+            final_output_path = intermediate_output_path  # Default to intermediate path
+            final_mime_type = f'image/{options.format}'    # Default mime type
+
+            if options.format == 'webp' and saved_format != 'webp':
+                # This indicates we have a PNG that needs conversion to WebP
+                final_output_path = os.path.join(temp_dir, f"{base_filename}.webp")
+                final_mime_type = 'image/webp'
+                logger.info(f"Converting {intermediate_output_path} to {final_output_path}")
+
+                try:
+                    with Image.open(intermediate_output_path) as img:
+                        # Pillow uses 'quality' for lossy formats like WebP/JPEG
+                        save_options = {}
+                        if options.image_quality is not None:
+                            # Pillow quality scale is 1-100
+                            quality = max(1, min(100, options.image_quality))
+                            save_options['quality'] = quality
+                            # Assume lossy if quality is set
+                            save_options['lossless'] = False
+                            logger.info(f"Saving WebP with quality={quality}, lossless=False")
+                        else:
+                            # Default to lossless=True if no quality specified
+                            save_options['lossless'] = True
+                            logger.info("Saving WebP with lossless=True (default)")
+
+                        img.save(final_output_path, 'WEBP', **save_options)
+                    logger.info(f"Successfully converted to {final_output_path}")
+
+                except Exception as conversion_error:
+                    logger.error(f"Pillow conversion to WebP failed: {conversion_error}")
+                    # Don't leave the final_output_path pointing to a non-existent file
+                    final_output_path = intermediate_output_path  # Fallback to original
+                    final_mime_type = f'image/{saved_format}'
+                    logger.warning(f"Falling back to original format: {saved_format}")
 
             # Handle different response types
             try:
                 if options.response_type == 'empty':
-                    os.remove(output_path)
+                    os.remove(final_output_path)
+                    if intermediate_output_path != final_output_path and os.path.exists(intermediate_output_path):
+                        os.remove(intermediate_output_path)
                     return '', 204
 
                 elif options.response_type == 'json':
-                    with open(output_path, 'rb') as f:
+                    with open(final_output_path, 'rb') as f:
                         file_data = f.read()
-                    os.remove(output_path)
+                    os.remove(final_output_path)
+                    if intermediate_output_path != final_output_path and os.path.exists(intermediate_output_path):
+                        os.remove(intermediate_output_path)
                     return jsonify({
                         'file': base64.b64encode(file_data).decode('utf-8'),
                         'format': options.format
                     }), 200
 
                 else:  # by_format
-                    mime_type = 'application/pdf' if options.format == 'pdf' else f'image/{options.format}'
-                    with open(output_path, 'rb') as f:
+                    with open(final_output_path, 'rb') as f:
                         file_data = f.read()
-                    os.remove(output_path)
+                    os.remove(final_output_path)
+                    if intermediate_output_path != final_output_path and os.path.exists(intermediate_output_path):
+                        os.remove(intermediate_output_path)
 
                     response = await make_response(file_data)
-                    response.headers['Content-Type'] = mime_type
+                    response.headers['Content-Type'] = final_mime_type
                     response.headers['Content-Disposition'] = f'attachment; filename=screenshot.{options.format}'
                     return response
 
             except Exception as e:
-                if os.path.exists(output_path):
-                    os.remove(output_path)
+                if os.path.exists(final_output_path):
+                    os.remove(final_output_path)
+                if intermediate_output_path != final_output_path and os.path.exists(intermediate_output_path):
+                    os.remove(intermediate_output_path)
                 raise e
 
         except ValueError as e:

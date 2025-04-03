@@ -201,5 +201,51 @@ async def test_geolocation_screenshot(test_client):
     assert response.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_screenshot_endpoint_webp(test_client):
+    """Test capturing a WebP screenshot."""
+    test_data = {
+        "url": "https://example.com",
+        "format": "webp",
+        "image_quality": 85,  # Test with quality
+        "window_width": 1280,
+        "window_height": 720
+    }
+
+    response = await test_client.post('/capture', json=test_data)
+
+    assert response.status_code == 200
+    assert response.headers['Content-Type'] == 'image/webp'
+    assert response.headers['Content-Disposition'].startswith('attachment; filename=screenshot.webp')
+
+    content = await response.get_data()
+    assert len(content) > 0
+    # WebP files start with RIFF....WEBP
+    assert content.startswith(b'RIFF') and content[8:12] == b'WEBP'
+
+
+@pytest.mark.asyncio
+async def test_screenshot_endpoint_webp_lossless(test_client):
+    """Test capturing a lossless WebP screenshot."""
+    test_data = {
+        "url": "https://example.com",
+        "format": "webp",
+        # No image_quality specified, should default to lossless
+        "window_width": 1280,
+        "window_height": 720
+    }
+
+    response = await test_client.post('/capture', json=test_data)
+
+    assert response.status_code == 200
+    assert response.headers['Content-Type'] == 'image/webp'
+    assert response.headers['Content-Disposition'].startswith('attachment; filename=screenshot.webp')
+
+    content = await response.get_data()
+    assert len(content) > 0
+    # WebP files start with RIFF....WEBP
+    assert content.startswith(b'RIFF') and content[8:12] == b'WEBP'
+
+
 if __name__ == '__main__':
     pytest.main([__file__, "-v"])

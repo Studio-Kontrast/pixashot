@@ -49,6 +49,7 @@ class CaptureService:
 
     async def capture_screenshot(self, output_path, options):
         """Capture screenshot using the configured controllers."""
+        page = None  # Initialize page to None
         try:
             page = await self.context.new_page()
 
@@ -79,14 +80,22 @@ class CaptureService:
                         options.window_height
                     )
 
+                # Determine the format Playwright should save
+                # If the final desired format is webp, save intermediate as png
+                # Otherwise, save as the requested format (png or jpeg)
+                intermediate_format = 'png' if options.format == 'webp' else options.format
+
                 # Take the actual screenshot using ScreenshotController
                 await self.screenshot_controller.take_screenshot(page, {
                     'path': output_path,
                     'full_page': options.full_page,
-                    'format': options.format,
-                    'quality': options.image_quality if options.format != 'png' else None,
+                    'format': intermediate_format,  # Use intermediate format
+                    'quality': options.image_quality if intermediate_format != 'png' else None,
                     'omit_background': options.omit_background
                 })
+
+                # Return the format that was actually saved by Playwright
+                return intermediate_format
 
             finally:
                 await page.close()
