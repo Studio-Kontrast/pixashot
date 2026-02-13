@@ -20,6 +20,11 @@ class Config:
     PROXY_PASSWORD = os.getenv('PROXY_PASSWORD')
     URL_SIGNING_SECRET = os.getenv('URL_SIGNING_SECRET')
     CACHE_MAX_SIZE = int(os.getenv('CACHE_MAX_SIZE', 0))
+    CORS_ENABLED = os.getenv('CORS_ENABLED', 'False').lower() == 'true'
+    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '*')
+    CORS_ALLOWED_METHODS = os.getenv('CORS_ALLOWED_METHODS', 'GET,POST,OPTIONS')
+    CORS_ALLOWED_HEADERS = os.getenv('CORS_ALLOWED_HEADERS', 'Content-Type,Authorization')
+    CORS_ALLOW_CREDENTIALS = os.getenv('CORS_ALLOW_CREDENTIALS', 'False').lower() == 'true'
 
 
 config = Config()
