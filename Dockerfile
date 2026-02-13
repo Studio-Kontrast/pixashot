@@ -13,10 +13,13 @@ ENV PORT=8080 \
 WORKDIR /app
 
 # Install required system packages
-RUN apt-get update && apt-get install -y --no-install-recommends xvfb libwebp7 || \
-    apt-get update && apt-get install -y --no-install-recommends xvfb libwebp6
-    & apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends xvfb libwebp7 \
+    || (apt-get update && apt-get install -y --no-install-recommends xvfb libwebp6); \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
+
 
 
 # Create a non-root user with the next available UID
