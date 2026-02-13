@@ -153,6 +153,46 @@ Complete documentation is available at [https://pixashot.com/docs](https://pixas
 - **Azure Container Instances**: Containerized deployment on Microsoft Azure.
 - **Self-hosted**: Deploy on your own infrastructure for maximum control and customization.
 
+### Chrome extension CORS (container + Dokploy/Traefik)
+
+If you call `/capture` from a Chrome extension and receive `Failed to fetch`, you can enable CORS directly in the
+Pixashot container, then optionally keep Traefik labels in Dokploy.
+
+1. Enable CORS in the Pixashot service:
+
+```bash
+CORS_ENABLED=true
+CORS_ALLOWED_ORIGINS=chrome-extension://<YOUR_EXTENSION_ID>
+CORS_ALLOWED_METHODS=GET,POST,OPTIONS
+CORS_ALLOWED_HEADERS=Content-Type,Authorization
+```
+
+2. (Optional) Add Traefik middleware labels in Dokploy if you still want CORS handled at the proxy layer:
+
+```yaml
+labels:
+  - "traefik.http.routers.<router>-web.middlewares=redirect-to-https@file,cors-headers"
+  - "traefik.http.routers.<router>-websecure.middlewares=cors-headers"
+  - "traefik.http.middlewares.cors-headers.headers.accesscontrolalloworiginlist=chrome-extension://<YOUR_EXTENSION_ID>"
+  - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowmethods=POST,OPTIONS"
+  - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowheaders=Content-Type"
+  - "traefik.http.middlewares.cors-headers.headers.addvaryheader=true"
+```
+
+3. Save and redeploy, then validate preflight handling:
+
+```bash
+curl -i -X OPTIONS \
+  -H "Origin: chrome-extension://<YOUR_EXTENSION_ID>" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type" \
+  http://<your-domain>/capture
+```
+
+You should receive a `200`/`204` response with `Access-Control-*` headers. If preflight still fails and the response has
+`Server: nginx`, your platform may be intercepting `OPTIONS` before Traefik middleware is applied; in that case,
+container-level CORS remains the most reliable fallback.
+
 ## 💰 Cost Efficiency
 
 - **Optimized Resource Usage**: Efficient use of CPU and memory, especially with the single browser context

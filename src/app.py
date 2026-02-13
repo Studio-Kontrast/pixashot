@@ -6,7 +6,7 @@ import time
 import psutil
 import logging
 
-from quart import Quart
+from quart import Quart, request, make_response
 from quart_rate_limiter import RateLimiter
 from playwright.async_api import async_playwright
 
@@ -81,6 +81,64 @@ def create_app():
 
     # Register routes
     register_routes(app)
+
+    def _parse_csv(value: str):
+        return [item.strip() for item in value.split(',') if item.strip()]
+
+    def _resolve_allowed_origin(origin: str):
+        allowed_origins = _parse_csv(config.CORS_ALLOWED_ORIGINS)
+        if '*' in allowed_origins:
+            return '*'
+        if origin in allowed_origins:
+            return origin
+        return None
+
+    @app.before_request
+    async def handle_cors_preflight():
+        if not config.CORS_ENABLED:
+            return None
+
+        if request.method != 'OPTIONS':
+            return None
+
+        origin = request.headers.get('Origin')
+        allowed_origin = _resolve_allowed_origin(origin) if origin else None
+        if origin and not allowed_origin:
+            return make_response('', 403)
+
+        response = await make_response('', 204)
+        if allowed_origin:
+            response.headers['Access-Control-Allow-Origin'] = allowed_origin
+            response.headers['Vary'] = 'Origin'
+
+        response.headers['Access-Control-Allow-Methods'] = config.CORS_ALLOWED_METHODS
+        response.headers['Access-Control-Allow-Headers'] = config.CORS_ALLOWED_HEADERS
+        if config.CORS_ALLOW_CREDENTIALS:
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+
+        return response
+
+    @app.after_request
+    async def add_cors_headers(response):
+        if not config.CORS_ENABLED:
+            return response
+
+        origin = request.headers.get('Origin')
+        if not origin:
+            return response
+
+        allowed_origin = _resolve_allowed_origin(origin)
+        if not allowed_origin:
+            return response
+
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Vary'] = 'Origin'
+        response.headers['Access-Control-Allow-Methods'] = config.CORS_ALLOWED_METHODS
+        response.headers['Access-Control-Allow-Headers'] = config.CORS_ALLOWED_HEADERS
+        if config.CORS_ALLOW_CREDENTIALS:
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+
+        return response
 
     return app
 
