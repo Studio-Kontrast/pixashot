@@ -1,5 +1,5 @@
 # Use Playwright image
-FROM mcr.microsoft.com/playwright/python:v1.47.0
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble@sha256:330d401ae23c905896a0c26c66c36fc971b621519e7b11b435a8328d7bf6e031
 
 # Set environment variables
 ENV PORT=8080 \
@@ -28,9 +28,9 @@ RUN useradd -m appuser && \
     chown -R appuser:appuser /app /tmp/screenshots /app/data /app/logs
 
 # Update pip and install requirements as non-root user
-COPY --chown=appuser:appuser requirements.txt .
+COPY --chown=appuser:appuser requirements.txt constraints-node-security.txt ./
 RUN python -m pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -c constraints-node-security.txt -r requirements.txt
 
 # Install Playwright browser
 RUN playwright install --with-deps chromium

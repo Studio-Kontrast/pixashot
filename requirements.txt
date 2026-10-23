@@ -1,7 +1,7 @@
 quart
 quart-rate-limiter
 hypercorn
-playwright
+playwright==1.64.1
 pydantic
 Pillow
 tenacity
